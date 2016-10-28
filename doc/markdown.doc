@@ -337,6 +337,42 @@ which will look as follows:
 | 10    | 10     | 10    |
 | 1000  | 1000   | 1000  |
 
+Additionally, column and row spans are supported.  Using a caret ("^")
+in a cell indicates that the cell above should span rows.  Sequences
+of carets may be used for any number of row spans.  For example:
+
+    | Right | Center | Left  |
+    | ----: | :----: | :---- |
+    | 10    | 10     | 10    |
+    | ^     | 1000   | 1000  |
+
+which will look as follows:
+
+| Right | Center | Left  |
+| ----: | :----: | :---- |
+| 10    | 10     | 10    |
+| ^     | 1000   | 1000  |
+
+Column spans are supported by means of directly adjacent vertical bars
+("|").  Each additional vertical bar indicates an additional column to
+be spanned.  To put it another way, a single vertical bar indicates a
+single column span, two vertical bars indicates a 2 columns span, and
+so on.  For example:
+
+    | Right | Center | Left  |
+    | ----: | :----: | :---- |
+    | 10    | 10     | 10    |
+    | 1000  |||
+
+which will look as follows:
+
+| Right | Center | Left  |
+| ----: | :----: | :---- |
+| 10    | 10     | 10    |
+| 1000  |||   
+
+For more complex tables in doxygen please have a look at: \ref tables
+
 \subsection md_fenced Fenced Code Blocks
 
 Another feature defined by "Markdown Extra" is support for
@@ -437,7 +473,7 @@ details).
 By default the name and title of the page are derived from the file name.
 If the file starts with a level 1 header however, it is used as the title
 of the page. If you specify a label for the 
-header (as shown \ref md_header_id "here") doxygen will use that as the
+header (as shown in \ref md_header_id) doxygen will use that as the
 page name. 
 
 If the label is called `index` or `mainpage` doxygen will put the
@@ -509,7 +545,7 @@ is noticeable:
        code
 
 In this case Markdown will put the word code in a code block,
-whereas Doxygen will treat it as normal text, since although the absolute
+whereas doxygen will treat it as normal text, since although the absolute
 indentation is 4, the indentation with respect to the previous paragraph
 is only 1.
 

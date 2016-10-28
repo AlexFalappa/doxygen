@@ -130,7 +130,13 @@ enum CommandType
   CMD_MDASH        = 100,
   CMD_STARTUML     = 101,
   CMD_ENDUML       = 102,
-  CMD_SETSCOPE     = 103
+  CMD_SETSCOPE     = 103,
+  CMD_PUNT         = 104,
+  CMD_PLUS         = 105,
+  CMD_MINUS        = 106,
+  CMD_INCLUDEDOC   = 107,
+  CMD_SNIPPETDOC   = 108,
+  CMD_SNIPWITHLINES= 109
 };
 
 enum HtmlTagType

@@ -18,6 +18,8 @@
  ******************************************************************************/
 
 %option never-interactive
+%option prefix="xmlcodeYY"
+
 %{
 
 #include <stdio.h>
@@ -49,6 +51,7 @@ static int           g_yyLineNr;        //!< current line number
 static bool          g_needsTermination;
 static Definition   *g_searchCtx;
 
+static bool          g_exampleBlock;
 static QCString      g_exampleName;
 static QCString      g_exampleFile;
 
@@ -323,12 +326,12 @@ void parseXmlCode(
     CodeOutputInterface &od,
     const char * /*className*/,
     const QCString &s,
-    bool /*exBlock*/,
+    bool exBlock,
     const char *exName,
     FileDef *fd,
     int startLine,
     int endLine,
-    bool /*inlineFragment*/,
+    bool inlineFragment,
     MemberDef *,
     bool,Definition *searchCtx,
     bool /*collectXRefs*/
@@ -345,22 +348,23 @@ void parseXmlCode(
   g_needsTermination = FALSE;
   g_searchCtx=searchCtx;
   
-  if (endLine!=-1)
-    g_inputLines  = endLine+1;
-  else
-    g_inputLines  = countLines();
-  
   if (startLine!=-1)
     g_yyLineNr    = startLine;
   else
     g_yyLineNr    = 1;
   
+  if (endLine!=-1)
+    g_inputLines  = endLine+1;
+  else
+    g_inputLines  = g_yyLineNr + countLines() - 1;
+  
+  g_exampleBlock  = exBlock; 
   g_exampleName   = exName;
   g_sourceFileDef = fd;
 
   bool cleanupSourceDef = FALSE;
   
-  if (fd==0)
+  if (exBlock && fd==0)
   {
     // create a dummy filedef for the example
     g_sourceFileDef = new FileDef("",(exName?exName:"generated"));
@@ -372,6 +376,7 @@ void parseXmlCode(
     setCurrentDoc("l00001");
   }
 
+  g_includeCodeFragment = inlineFragment;
   // Starts line 1 on the output  
   startCodeLine();
 
@@ -407,7 +412,7 @@ void resetXmlCodeParserState()
 extern "C" { // some bogus code to keep the compiler happy
   void xmlcodeYYdummy() { yy_flex_realloc(0,0); } 
 }
-#elif YY_FLEX_SUBMINOR_VERSION<33
+#elif YY_FLEX_MAJOR_VERSION<=2 && YY_FLEX_MINOR_VERSION<=5 && YY_FLEX_SUBMINOR_VERSION<33
 #error "You seem to be using a version of flex newer than 2.5.4. These are currently incompatible with 2.5.4, and do NOT work with doxygen! Please use version 2.5.4 or expect things to be parsed wrongly! A bug report has been submitted (#732132)."
 #endif
 

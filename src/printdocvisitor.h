@@ -22,6 +22,7 @@
 #include <qglobal.h>
 #include "docvisitor.h"
 #include "htmlentity.h"
+#include "message.h"
 
 /*! Concrete visitor implementation for pretty printing */
 class PrintDocVisitor : public DocVisitor
@@ -170,6 +171,12 @@ class PrintDocVisitor : public DocVisitor
         case DocInclude::LatexInclude: printf("latexinclude"); break;
         case DocInclude::VerbInclude: printf("verbinclude"); break;
         case DocInclude::Snippet: printf("snippet"); break;
+        case DocInclude::SnipWithLines: printf("snipwithlines"); break;
+        case DocInclude::SnippetDoc: 
+        case DocInclude::IncludeDoc: 
+          err("Internal inconsistency: found switch SnippetDoc / IncludeDoc in file: %s"
+              "Please create a bug report\n",__FILE__);
+          break;
       }
       printf("\"/>");
     }
@@ -536,10 +543,11 @@ class PrintDocVisitor : public DocVisitor
       indent_pre();
       printf("<ref ref=\"%s\" file=\"%s\" "
              "anchor=\"%s\" targetTitle=\"%s\""
-             " hasLinkText=\"%s\" refToAnchor=\"%s\" refToSection=\"%s\">\n",
+             " hasLinkText=\"%s\" refToAnchor=\"%s\" refToSection=\"%s\" refToTable=\"%s\">\n",
              ref->ref().data(),ref->file().data(),ref->anchor().data(),
              ref->targetTitle().data(),ref->hasLinkText()?"yes":"no",
-             ref->refToAnchor()?"yes":"no", ref->refToSection()?"yes":"no");
+             ref->refToAnchor()?"yes":"no", ref->refToSection()?"yes":"no",
+             ref->refToTable()?"yes":"no");
     }
     void visitPost(DocRef *) 
     {

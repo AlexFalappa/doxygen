@@ -38,6 +38,9 @@
  * - Must track yyLineNr when using REJECT, unput() or similar commands.
  */
 %option never-interactive
+%option case-insensitive
+%option prefix="fortranscannerYY"
+
 %{
 
 #include <stdio.h> 
@@ -100,13 +103,14 @@ struct SymbolModifiers {
   bool pass;
   bool contiguous;
   bool volat; /* volatile is a reserverd name */
+  bool value; /* volatile is a reserverd name */
   QCString passVar;
 
   SymbolModifiers() : type(), returnName(), protection(NONE_P), direction(NONE_D),
     optional(FALSE), protect(FALSE), dimension(), allocatable(FALSE),
     external(FALSE), intrinsic(FALSE), parameter(FALSE),
     pointer(FALSE), target(FALSE), save(FALSE), deferred(FALSE), nonoverridable(FALSE),
-    nopass(FALSE), pass(FALSE), contiguous(FALSE), volat(FALSE), passVar() {}
+    nopass(FALSE), pass(FALSE), contiguous(FALSE), volat(FALSE), value(FALSE), passVar() {}
 
   SymbolModifiers& operator|=(const SymbolModifiers &mdfs);
   SymbolModifiers& operator|=(QCString mdfrString);
@@ -213,7 +217,7 @@ static bool endScope(Entry *scope, bool isGlobalRoot=FALSE);
 //static bool isTypeName(QCString name);
 static void resolveModuleProcedures(QList<Entry> &moduleProcedures, Entry *current_root);
 static int getAmpersandAtTheStart(const char *buf, int length);
-static int getAmpOrExclAtTheEnd(const char *buf, int length);
+static int getAmpOrExclAtTheEnd(const char *buf, int length, char ch);
 static void truncatePrepass(int index);
 static void pushBuffer(QCString &buffer);
 static void popBuffer();
@@ -259,7 +263,7 @@ CHAR      (CHARACTER{ARGS}?|CHARACTER{BS}"*"({BS}[0-9]+|{ARGS}))
 TYPE_SPEC (({NUM_TYPE}({BS}"*"{BS}[0-9]+)?)|({NUM_TYPE}{KIND})|DOUBLE{BS}COMPLEX|DOUBLE{BS}PRECISION|{CHAR}|TYPE{ARGS}|CLASS{ARGS}|PROCEDURE{ARGS}?)
 
 INTENT_SPEC intent{BS}"("{BS}(in|out|in{BS}out){BS}")"
-ATTR_SPEC (EXTERNAL|ALLOCATABLE|DIMENSION{ARGS}|{INTENT_SPEC}|INTRINSIC|OPTIONAL|PARAMETER|POINTER|PROTECTED|PRIVATE|PUBLIC|SAVE|TARGET|NOPASS|PASS{ARGS}?|DEFERRED|NON_OVERRIDABLE|CONTIGUOUS|VOLATILE)
+ATTR_SPEC (EXTERNAL|ALLOCATABLE|DIMENSION{ARGS}|{INTENT_SPEC}|INTRINSIC|OPTIONAL|PARAMETER|POINTER|PROTECTED|PRIVATE|PUBLIC|SAVE|TARGET|NOPASS|PASS{ARGS}?|DEFERRED|NON_OVERRIDABLE|CONTIGUOUS|VOLATILE|VALUE)
 ACCESS_SPEC (PRIVATE|PUBLIC)
 LANGUAGE_BIND_SPEC BIND{BS}"("{BS}C{BS}(,{BS}NAME{BS}"="{BS}"\""(.*)"\""{BS})?")"
 /* Assume that attribute statements are almost the same as attributes. */
@@ -321,13 +325,19 @@ SCOPENAME ({ID}{BS}"::"{BS})*
 
  /*-----------------------------------------------------------------------------------*/
 
+<Prepass>^{BS}[&]*{BS}!.*\n             { /* skip lines with just comment. Note code was in free format or has been converted to it */
+                                          lineCountPrepass ++;
+                                        }
+<Prepass>^{BS}\n                        { /* skip empty lines */
+                                          lineCountPrepass ++;
+                                        }
 <*>^.*\n                                { // prepass: look for line continuations
   					  functionLine = FALSE;
 
                                           DBG_CTX((stderr, "---%s", yytext));
 
                                             int indexStart = getAmpersandAtTheStart(yytext, (int)yyleng);
-                                            int indexEnd = getAmpOrExclAtTheEnd(yytext, (int)yyleng);
+                                            int indexEnd = getAmpOrExclAtTheEnd(yytext, (int)yyleng, '\0');
 					    if (indexEnd>=0 && yytext[indexEnd]!='&') //we are only interested in amp
 					      indexEnd=-1;
 
@@ -685,9 +695,12 @@ private                                 {
                                            // in a scope of their own, even if multiple
                                            // are group in one INTERFACE/END INTERFACE block.
                                            //
-                                           last_entry->endBodyLine = yyLineNr - 1;
                                            if (ifType == IF_ABSTRACT || ifType == IF_SPECIFIC)
+                                           {
                                              endScope(current_root);
+                                             last_entry->endBodyLine = yyLineNr - 1;
+                                           }
+                                           current_root->endBodyLine = yyLineNr - 1;
 
 					   if (!endScope(current_root))
 					     yyterminate();
@@ -1070,7 +1083,7 @@ private                                 {
 					   current->docLine  = yyLineNr;
  					   docBlockJavaStyle = FALSE;
 					   docBlock.resize(0);
-					   docBlockJavaStyle = Config_getBool("JAVADOC_AUTOBRIEF");
+					   docBlockJavaStyle = Config_getBool(JAVADOC_AUTOBRIEF);
 					   startCommentBlock(TRUE);
                                            yy_push_state(DocBackLine);
                                           }
@@ -1125,7 +1138,7 @@ private                                 {
  					  docBlockJavaStyle = FALSE;
 					  if (YY_START==SubprogBody) docBlockInBody = TRUE;
 					  docBlock.resize(0);
-					  docBlockJavaStyle = Config_getBool("JAVADOC_AUTOBRIEF");
+					  docBlockJavaStyle = Config_getBool(JAVADOC_AUTOBRIEF);
 					  startCommentBlock(TRUE);
 					  BEGIN(DocBlock);
                                           //cout << "start DocBlock " << endl;
@@ -1272,13 +1285,15 @@ static int getAmpersandAtTheStart(const char *buf, int length)
 }
 
 /* Returns ampersand index, comment start index or -1 if neither exist.*/ 
-static int getAmpOrExclAtTheEnd(const char *buf, int length)
+static int getAmpOrExclAtTheEnd(const char *buf, int length, char ch)
 {
   // Avoid ampersands in string and comments
   int parseState = Start;
   char quoteSymbol = 0;
   int ampIndex = -1;
   int commentIndex = -1;
+  quoteSymbol = ch;
+  if (ch != '\0') parseState = String;
 
   for(int i=0; i<length && parseState!=Comment; i++)
   {
@@ -1409,11 +1424,14 @@ static const char* prepassFixedForm(const char* contents)
   int column=0;
   int prevLineLength=0;
   int prevLineAmpOrExclIndex=-1;
+  char prevQuote = '\0';
+  char thisQuote = '\0';
   bool emptyLabel=TRUE;
   bool commented=FALSE;
   bool inSingle=FALSE;
   bool inDouble=FALSE;
   bool inBackslash=FALSE;
+  bool fullCommentLine=TRUE;
   int newContentsSize = strlen(contents)+3; // \000, \n (when necessary) and one spare character (to avoid reallocation)
   char* newContents = (char*)malloc(newContentsSize);
 
@@ -1427,12 +1445,22 @@ static const char* prepassFixedForm(const char* contents)
     char c = contents[i];
     switch(c) {
       case '\n':
-        prevLineLength=column;
-        prevLineAmpOrExclIndex=getAmpOrExclAtTheEnd(&contents[i-prevLineLength+1], prevLineLength);
+        if (!fullCommentLine)
+        {
+          prevLineLength=column;
+          prevLineAmpOrExclIndex=getAmpOrExclAtTheEnd(&contents[i-prevLineLength+1], prevLineLength,prevQuote);
+          if (prevLineAmpOrExclIndex == -1) prevLineAmpOrExclIndex = column - 1;
+        }
+        else
+        {
+          prevLineLength+=column;
+        }
+        fullCommentLine=TRUE;
         column=0;
 	emptyLabel=TRUE;
         commented=FALSE;
         newContents[j]=c;
+        prevQuote = thisQuote;
         break;
       case ' ':
       case '\t':
@@ -1454,7 +1482,8 @@ static const char* prepassFixedForm(const char* contents)
       case '\\':
         if ((column <= fixedCommentAfter) && (column!=6) && !commented)
 	{
-          // we have some special cases in respect to strings and exscaped string characters
+          // we have some special cases in respect to strings and escaped string characters
+          fullCommentLine=FALSE;
 	  newContents[j]=c;
           if (c == '\\')
           {
@@ -1463,12 +1492,22 @@ static const char* prepassFixedForm(const char* contents)
           }
           else if (c == '\'')
           {
-            if (!inDouble) inSingle = !inSingle;
+            if (!inDouble)
+            {
+              inSingle = !inSingle;
+              if (inSingle) thisQuote = c;
+              else thisQuote = '\0';
+            }
             break;
           }
           else if (c == '"')
           {
-            if (!inSingle) inDouble = !inDouble;
+            if (!inSingle)
+            {
+              inDouble = !inDouble; 
+              if (inDouble) thisQuote = c; 
+              else thisQuote = '\0';
+            }
             break;
           }
         }
@@ -1493,6 +1532,7 @@ static const char* prepassFixedForm(const char* contents)
           }
 	  else
           {
+            if (!commented) fullCommentLine=FALSE;
 	    newContents[j]=c;
           }
 	  break;
@@ -1500,6 +1540,7 @@ static const char* prepassFixedForm(const char* contents)
         // fallthrough
       default:
         if(column==6 && emptyLabel) { // continuation
+          if (!commented) fullCommentLine=FALSE;
           if (c != '0') { // 0 not allowed as continuation character, see f95 standard paragraph 3.3.2.3
             newContents[j]=' ';
 
@@ -1513,6 +1554,7 @@ static const char* prepassFixedForm(const char* contents)
 	  } else {
 	    newContents[j]=c; // , just handle like space
           }
+          prevLineLength=0;
 	} else if ((column > fixedCommentAfter) && !commented) {
           // first non commented non blank character after position fixedCommentAfter
           if (c != '!') {
@@ -1523,6 +1565,7 @@ static const char* prepassFixedForm(const char* contents)
 	  newContents[j]=c;
           commented = TRUE;
 	} else {
+          if (!commented) fullCommentLine=FALSE;
 	  newContents[j]=c;
 	  emptyLabel=FALSE;
 	}
@@ -1652,6 +1695,7 @@ SymbolModifiers& SymbolModifiers::operator|=(const SymbolModifiers &mdfs)
   passVar = mdfs.passVar;
   contiguous |= mdfs.contiguous;
   volat |= mdfs.volat;
+  value |= mdfs.value;
   return *this;
 }
 
@@ -1737,6 +1781,10 @@ SymbolModifiers& SymbolModifiers::operator|=(QCString mdfString)
   else if (mdfString=="volatile")
   {
     newMdf.volat = TRUE;
+  }
+  else if (mdfString=="value")
+  {
+    newMdf.value = TRUE;
   }
   else if (mdfString.contains("pass"))
   {
@@ -1901,6 +1949,11 @@ static QCString applyModifiers(QCString typeName, SymbolModifiers& mdfs)
   {
     if (!typeName.isEmpty()) typeName += ", ";
     typeName += "volatile";
+  }
+  if (mdfs.value)
+  {
+    if (!typeName.isEmpty()) typeName += ", ";
+    typeName += "value";
   }
 
   return typeName;
@@ -2238,7 +2291,7 @@ static void startCommentBlock(bool brief)
 static void handleCommentBlock(const QCString &doc,bool brief)
 {
   bool needsEntry = FALSE;
-  static bool hideInBodyDocs = Config_getBool("HIDE_IN_BODY_DOCS");
+  static bool hideInBodyDocs = Config_getBool(HIDE_IN_BODY_DOCS);
   int position=0;
   if (docBlockInBody && hideInBodyDocs)
   {
@@ -2462,7 +2515,11 @@ static void parseMain(const char *fileName,const char *fileBuf,Entry *rt, Fortra
       //printf("---strlen=%d\n", strlen(fileBuf));
       //clock_t start=clock();
 
+      //printf("Input fixed form string:\n%s\n", fileBuf);
+      //printf("===========================\n");
       inputString = prepassFixedForm(fileBuf);
+      //printf("Resulting free form string:\n%s\n", inputString);
+      //printf("===========================\n");
 
       //clock_t end=clock();
       //printf("CPU time used=%f\n", ((double) (end-start))/CLOCKS_PER_SEC);

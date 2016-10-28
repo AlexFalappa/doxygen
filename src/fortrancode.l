@@ -24,6 +24,9 @@
        - references to variables
 **/
 %option never-interactive
+%option case-insensitive
+%option prefix="fortrancodeYY"
+
 %{
 
 /*
@@ -356,7 +359,7 @@ static void codifyLines(QCString str)
 static void writeMultiLineCodeLink(CodeOutputInterface &ol,
                   Definition *d,const char *text)
 {
-  static bool sourceTooltips = Config_getBool("SOURCE_TOOLTIPS");
+  static bool sourceTooltips = Config_getBool(SOURCE_TOOLTIPS);
   TooltipManager::instance()->addTooltip(d);
   QCString ref  = d->getReference();
   QCString file = d->getOutputFileBase();
@@ -484,7 +487,7 @@ static bool getFortranDefs(const QCString &memberName, const QCString &moduleNam
 
   if (mn) // name is known
   {
-      MemberListIterator mli(*mn);
+      MemberNameIterator mli(*mn);
       for (mli.toFirst();(md=mli.current());++mli) // all found functions with given name
       {
         FileDef  *fd=md->getFileDef();
@@ -795,7 +798,7 @@ PREFIX    (RECURSIVE{BS_}|IMPURE{BS_}|PURE{BS_}|ELEMENTAL{BS_}){0,3}(RECURSIVE|I
   					  codifyLines(yytext);
 					  endFontClass();
 					}
-<Start>"implicit"{BS}"none"             { 
+<Start>"implicit"{BS}("none"|{TYPE_SPEC})  { 
   					  startFontClass("keywordtype"); 
   					  codifyLines(yytext);
 					  endFontClass();
@@ -925,7 +928,12 @@ PREFIX    (RECURSIVE{BS_}|IMPURE{BS_}|PURE{BS_}|ELEMENTAL{BS_}){0,3}(RECURSIVE|I
 					  startScope();
 					  generateLink(*g_code,yytext);
                                         }
-<Subprog>"(".*                          { // ignore rest of line 
+<Subprog>"result"/{BS}"("[^)]*")"       {
+   					  startFontClass("keyword");
+ 					  codifyLines(yytext);
+					  endFontClass();
+                                        }
+<Subprog>"("[^)]*")"                    { // ignore rest of line 
  					  codifyLines(yytext);
                                         }
 <Subprog,Subprogend>"\n"                { codifyLines(yytext);
@@ -1086,7 +1094,7 @@ PREFIX    (RECURSIVE{BS_}|IMPURE{BS_}|PURE{BS_}|ELEMENTAL{BS_}){0,3}(RECURSIVE|I
    					}
 <DocBlock>"\n"        			{ // comment block ends at the end of this line
                                           // remove special comment (default config)
-  					  if (Config_getBool("STRIP_CODE_COMMENTS"))
+  					  if (Config_getBool(STRIP_CODE_COMMENTS))
 					  {
 					    g_yyLineNr+=((QCString)docBlock).contains('\n');
               g_yyLineNr+=1;
@@ -1120,6 +1128,16 @@ PREFIX    (RECURSIVE{BS_}|IMPURE{BS_}|PURE{BS_}|ELEMENTAL{BS_}){0,3}(RECURSIVE|I
                                           if(! g_isFixedForm) YY_FTN_REJECT;
 
   					  startFontClass("comment");
+  					  codifyLines(yytext);
+					  endFontClass();
+					}
+<*>"assignment"/{BS}"("{BS}"="{BS}")"   {
+  					  startFontClass("keyword");
+  					  codifyLines(yytext);
+					  endFontClass();
+					}
+<*>"operator"/{BS}"("[^)]*")"           {
+  					  startFontClass("keyword");
   					  codifyLines(yytext);
 					  endFontClass();
 					}
@@ -1206,7 +1224,7 @@ PREFIX    (RECURSIVE{BS_}|IMPURE{BS_}|PURE{BS_}|ELEMENTAL{BS_}){0,3}(RECURSIVE|I
                                         }
 <*><<EOF>>                              {
                                           if (YY_START == DocBlock) {
-                                            if (!Config_getBool("STRIP_CODE_COMMENTS"))
+                                            if (!Config_getBool(STRIP_CODE_COMMENTS))
                                             {
                                               startFontClass("comment");
                                               codifyLines(docBlock);
@@ -1248,15 +1266,16 @@ void parseFortranCode(CodeOutputInterface &od,const char *className,const QCStri
   g_needsTermination = FALSE;
   g_searchCtx = searchCtx;
   g_collectXRefs = collectXRefs;
-  if (endLine!=-1)
-    g_inputLines  = endLine+1;
-  else
-    g_inputLines  = countLines();
-
   if (startLine!=-1)
     g_yyLineNr    = startLine;
   else
     g_yyLineNr    = 1;
+
+  if (endLine!=-1)
+    g_inputLines  = endLine+1;
+  else
+    g_inputLines  = g_yyLineNr + countLines() - 1;
+
 
   g_exampleBlock  = exBlock; 
   g_exampleName   = exName;
@@ -1302,11 +1321,11 @@ void parseFortranCode(CodeOutputInterface &od,const char *className,const QCStri
   return;
 }
 
-#if !defined(YY_FLEX_SUBMINOR_VERSION) 
+#if !defined(YY_FLEX_SUBMINOR_VERSION)
 extern "C" { // some bogus code to keep the compiler happy
-  void fortrancodeYYdummy() { yy_flex_realloc(0,0); } 
+  void fortrancodeYYdummy() { yy_flex_realloc(0,0); }
 }
-#elif YY_FLEX_SUBMINOR_VERSION<33
+#elif YY_FLEX_MAJOR_VERSION<=2 && YY_FLEX_MINOR_VERSION<=5 && YY_FLEX_SUBMINOR_VERSION<33
 #error "You seem to be using a version of flex newer than 2.5.4 but older than 2.5.33. These versions do NOT work with doxygen! Please use version <=2.5.4 or >=2.5.33 or expect things to be parsed wrongly!"
 #else
 extern "C" { // some bogus code to keep the compiler happy
