@@ -329,7 +329,8 @@ int guessSection(const char *name)
       n.right(4)==".ipp"  ||
       n.right(4)==".i++"  ||
       n.right(4)==".inl"  ||
-      n.right(4)==".xml" 
+      n.right(4)==".xml"  ||
+      n.right(4)==".sql" 
      ) return Entry::SOURCE_SEC;
   if (n.right(2)==".h"   || // header
       n.right(3)==".hh"  ||
@@ -7061,6 +7062,7 @@ g_lang2extMap[] =
   { "fortranfixed", "fortranfixed", SrcLangExt_Fortran  },
   { "vhdl",        "vhdl",          SrcLangExt_VHDL     },
   { "xml",         "xml",           SrcLangExt_XML      },
+  { "sql",         "sql",           SrcLangExt_SQL      },
   { "tcl",         "tcl",           SrcLangExt_Tcl      },
   { "md",          "md",            SrcLangExt_Markdown },
   { 0,             0,              (SrcLangExt)0        }
@@ -7164,6 +7166,7 @@ void initDefaultExtensionMapping()
 void addCodeOnlyMappings()
 {
   updateLanguageMapping(".xml",   "xml");
+  updateLanguageMapping(".sql",   "sql");
 }
 
 SrcLangExt getLanguageFromFileName(const QCString fileName)
@@ -8187,6 +8190,7 @@ QCString langToString(SrcLangExt lang)
     case SrcLangExt_Fortran:  return "Fortran";
     case SrcLangExt_VHDL:     return "VHDL";
     case SrcLangExt_XML:      return "XML";
+    case SrcLangExt_SQL:      return "SQL";
     case SrcLangExt_Tcl:      return "Tcl";
     case SrcLangExt_Markdown: return "Markdown";
   }
@@ -8412,7 +8416,7 @@ uint getUtf8CodeToLower( const QCString& s, int idx )
 }
 
 
-/*! @brief Returns one unicode character as ian unsigned interger 
+/*! @brief Returns one unicode character as an unsigned integer 
  *  from utf-8 string, making the character upper case if it was lower case.
  *
  * @param s utf-8 encoded string

@@ -747,7 +747,7 @@ Go to the <a href="commands.html">next</a> section or return to the
       </docs>
     </option>
     <option type='int' id='LOOKUP_CACHE_SIZE' minval='0' maxval='9' defval='0'>
-      <!-- be carefull when changing these formulas as they are hard coded in the conversion script -->
+      <!-- be careful when changing these formulas as they are hard coded in the conversion script -->
       <docs>
 <![CDATA[
  The size of the symbol lookup cache can be 
@@ -1938,6 +1938,18 @@ hr.footer {
  each generated HTML page will contain the date and time when the page 
  was generated. Setting this to \c YES can help to show when doxygen was last run 
  and thus if the documentation is up to date.
+]]>
+      </docs>
+    </option>
+    <option type='bool' id='HTML_DYNAMIC_MENUS' defval='1' depends='GENERATE_HTML'>
+      <docs>
+<![CDATA[
+ If the \c HTML_DYNAMIC_MENUS tag is set to \c YES then the generated HTML 
+ documentation will contain a main index with vertical navigation menus that 
+ are dynamically created via Javascript. If disabled, the navigation index will consists of 
+ multiple levels of tabs that are statically embedded in every HTML page. 
+ Disable this option to support browsers that do not have Javascript, like 
+ the Qt help browser.
 ]]>
       </docs>
     </option>

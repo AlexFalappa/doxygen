@@ -1014,7 +1014,7 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
   					  current->name = yytext;
   					}
 <CliPropertyType>"["		        { // C++/CLI indexed property
-  					  current->name += yytext;
+  					  current->args = "[";
 					  BEGIN( CliPropertyIndex );
   					}
 <CliPropertyType>"{"			{
@@ -1037,10 +1037,10 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
   					}
 <CliPropertyIndex>"]"			{
                                           BEGIN( CliPropertyType );
-  					  current->name+=yytext;
+  					  current->args+=yytext;
   					}
 <CliPropertyIndex>.			{
-  					  current->name+=yytext;
+  					  current->args+=yytext;
   					}
   /*
 <FindMembers>{B}*"property"{BN}+        { 
@@ -1723,7 +1723,8 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
                                           bool isVolatile=decl.find("volatile")!=-1;
   					  current->section = Entry::CLASS_SEC ;
 					  current->spec    = Entry::Struct |
-					    (current->spec & Entry::Published); // preserve UNO IDL
+					    (current->spec & Entry::Published) |
+                                            (current->spec & Entry::Inline); // preserve UNO IDL & Inline attributes
 					  // bug 582676: can be a struct nested in an interface so keep insideObjC state
 					  //current->objc    = insideObjC = FALSE;
 					  addType( current ) ;
@@ -2051,6 +2052,9 @@ OPERATOR  "operator"{B}*({ARITHOP}|{ASSIGNOP}|{LOGICOP}|{BITOP})
 					    BEGIN( DocBlock );
 					  }
   					}
+<UsingAlias>">>"                        {
+                                          previous->args+="> >"; // see bug769552
+                                        }
 <UsingAlias>.                           {
                                           previous->args+=yytext;
                                         }
